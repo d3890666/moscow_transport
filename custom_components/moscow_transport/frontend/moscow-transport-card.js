@@ -1,6 +1,6 @@
 /**
  * Moscow Transport Lovelace Card for Home Assistant
- * Modern real-time transit departure board.
+ * Modern real-time transit departure board with manual refresh button.
  */
 
 class MoscowTransportCard extends HTMLElement {
@@ -17,6 +17,7 @@ class MoscowTransportCard extends HTMLElement {
       title: config.title || '',
       max_items: config.max_items || 6,
       show_empty: config.show_empty !== false,
+      show_refresh: config.show_refresh !== false,
       ...config
     };
   }
@@ -38,7 +39,8 @@ class MoscowTransportCard extends HTMLElement {
     return {
       entity: '',
       title: 'Московский транспорт',
-      max_items: 6
+      max_items: 6,
+      show_refresh: true
     };
   }
 
@@ -64,7 +66,6 @@ class MoscowTransportCard extends HTMLElement {
     // Fallback if all_arrivals not present (e.g. legacy attributes)
     let arrivals = [...allArrivals];
     if (arrivals.length === 0 && attrs) {
-      // Parse legacy attributes format: route -> array of "12:34*"
       Object.keys(attrs).forEach(key => {
         if (Array.isArray(attrs[key]) && key !== 'all_arrivals') {
           attrs[key].forEach(item => {
@@ -117,6 +118,7 @@ class MoscowTransportCard extends HTMLElement {
           justify-content: center;
           color: white;
           box-shadow: 0 4px 10px rgba(0, 119, 255, 0.3);
+          flex-shrink: 0;
         }
         .icon-badge svg {
           width: 22px;
@@ -133,6 +135,40 @@ class MoscowTransportCard extends HTMLElement {
           font-size: 0.8rem;
           color: var(--secondary-text-color);
           margin-top: 2px;
+        }
+        .refresh-btn {
+          background: none;
+          border: none;
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          cursor: pointer;
+          color: var(--secondary-text-color);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: color 0.2s, background 0.2s, transform 0.2s;
+          outline: none;
+          flex-shrink: 0;
+        }
+        .refresh-btn:hover {
+          color: var(--primary-color, #0077ff);
+          background: var(--primary-color-opacity, rgba(0, 119, 255, 0.08));
+        }
+        .refresh-btn:active {
+          transform: scale(0.92);
+        }
+        .refresh-btn svg {
+          width: 20px;
+          height: 20px;
+          fill: currentColor;
+        }
+        .refresh-btn.spinning svg {
+          animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
         .arrivals-list {
           display: flex;
@@ -233,6 +269,13 @@ class MoscowTransportCard extends HTMLElement {
               <div class="subtitle">Онлайн табло прибытия</div>
             </div>
           </div>
+          ${this._config.show_refresh ? `
+            <button class="refresh-btn" id="refresh-button" title="Принудительно обновить расписание">
+              <svg viewBox="0 0 24 24">
+                <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z" />
+              </svg>
+            </button>
+          ` : ''}
         </div>
 
         ${displayArrivals.length === 0 ? `
@@ -267,6 +310,25 @@ class MoscowTransportCard extends HTMLElement {
         `}
       </ha-card>
     `;
+
+    const refreshBtn = this.shadowRoot.querySelector('#refresh-button');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        refreshBtn.classList.add('spinning');
+        try {
+          await this._hass.callService('homeassistant', 'update_entity', {
+            entity_id: entityId
+          });
+        } catch (err) {
+          console.warn('Failed to force update entity:', err);
+        } finally {
+          setTimeout(() => {
+            refreshBtn.classList.remove('spinning');
+          }, 800);
+        }
+      });
+    }
   }
 }
 
@@ -306,6 +368,10 @@ class MoscowTransportCardEditor extends HTMLElement {
           <label style="display:block; margin-bottom: 4px; font-weight: 500;">Максимум рейсов на табло:</label>
           <input type="number" id="max-items-input" min="1" max="20" value="${this._config.max_items || 6}" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--divider-color, #ccc); background: var(--card-background-color, #fff); color: var(--primary-text-color);" />
         </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" id="refresh-checkbox" ${this._config.show_refresh !== false ? 'checked' : ''} style="width: 18px; height: 18px;" />
+          <label for="refresh-checkbox" style="font-weight: 500; cursor: pointer;">Показывать кнопку принудительного обновления</label>
+        </div>
       </div>
     `;
 
@@ -321,6 +387,11 @@ class MoscowTransportCardEditor extends HTMLElement {
 
     this.querySelector('#max-items-input').addEventListener('change', (ev) => {
       this._config = { ...this._config, max_items: parseInt(ev.target.value, 10) || 6 };
+      this.fireConfigChanged();
+    });
+
+    this.querySelector('#refresh-checkbox').addEventListener('change', (ev) => {
+      this._config = { ...this._config, show_refresh: ev.target.checked };
       this.fireConfigChanged();
     });
   }
@@ -347,7 +418,7 @@ window.customCards.push({
 });
 
 console.info(
-  '%c MOSCOW TRANSPORT CARD %c v24.11.3 ',
+  '%c МОСКОВСКИЙ ТРАНСПОРТ %c v26.09.02 ',
   'color: white; background: #0077ff; font-weight: 700;',
   'color: #0077ff; background: #e6f2ff; font-weight: 700;'
 );

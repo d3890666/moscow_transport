@@ -113,6 +113,11 @@ class MoscowTransportSensor(CoordinatorEntity[MoscowTransportCoordinator], Senso
         self._custom_name = entry.data.get(CONF_NAME) or ""
         self._attr_unique_id = f"{self._stop_id}-moscow_transport"
 
+    async def async_update(self) -> None:
+        """Manual update requested via homeassistant.update_entity service."""
+        await self.coordinator.async_request_refresh()
+
+
     @property
     def device_info(self) -> DeviceInfo:
         """Return device information for Home Assistant device registry."""
