@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 from typing import Any
 
 from .const import DOMAIN
@@ -24,17 +25,38 @@ except ImportError:
 
 _LOGGER = logging.getLogger(__name__)
 
-FRONTEND_URL = "/moscow_transport/moscow-transport-card.js"
-FRONTEND_PATH = os.path.join(os.path.dirname(__file__), "frontend", "moscow-transport-card.js")
+CARD_FILENAME = "moscow-transport-card.js"
+FRONTEND_URL = f"/moscow_transport/{CARD_FILENAME}"
+LOCAL_URL = f"/local/{CARD_FILENAME}"
+FRONTEND_PATH = os.path.join(os.path.dirname(__file__), "frontend", CARD_FILENAME)
+VERSION_TAG = "26.09.04"
 
 
 async def async_register_frontend(hass: HomeAssistant) -> None:
-    """Register Lovelace frontend card and resources."""
+    """Register Lovelace frontend card and resources automatically across all devices."""
     if hass.data.setdefault(f"{DOMAIN}_frontend_registered", False):
         return
     hass.data[f"{DOMAIN}_frontend_registered"] = True
 
-    # 1. Register static path in HTTP server
+    # 1. Copy card file to /config/www/ so it is permanently served by standard /local/ route
+    def _copy_to_www() -> None:
+        try:
+            if hasattr(hass, "config") and hasattr(hass.config, "path"):
+                www_dir = hass.config.path("www")
+                os.makedirs(www_dir, exist_ok=True)
+                dest_file = os.path.join(www_dir, CARD_FILENAME)
+                if os.path.exists(FRONTEND_PATH):
+                    shutil.copyfile(FRONTEND_PATH, dest_file)
+                    _LOGGER.debug("Copied %s to %s", CARD_FILENAME, dest_file)
+        except Exception as err:
+            _LOGGER.debug("Failed to copy card to www: %s", err)
+
+    if hasattr(hass, "async_add_executor_job"):
+        await hass.async_add_executor_job(_copy_to_www)
+    else:
+        _copy_to_www()
+
+    # 2. Register static path in HTTP server for /moscow_transport/ URL
     if hasattr(hass, "http"):
         try:
             if hasattr(hass.http, "async_register_static_paths"):
@@ -47,13 +69,52 @@ async def async_register_frontend(hass: HomeAssistant) -> None:
         except Exception as err:
             _LOGGER.debug("Static path registration failed: %s", err)
 
-    # 2. Automatically register extra JS URL in Lovelace frontend
-    try:
-        from homeassistant.components.frontend import add_extra_js_url
-        add_extra_js_url(hass, FRONTEND_URL)
-        _LOGGER.debug("Added extra JS url: %s", FRONTEND_URL)
-    except Exception as err:
-        _LOGGER.debug("Could not add extra JS URL: %s", err)
+    # 3. Add to extra_js_url for automatic script injection into HTML head
+    urls_to_register = [
+        f"{LOCAL_URL}?v={VERSION_TAG}",
+        f"{FRONTEND_URL}?v={VERSION_TAG}",
+    ]
+    for js_url in urls_to_register:
+        try:
+            from homeassistant.components.frontend import add_extra_js_url
+            add_extra_js_url(hass, js_url)
+            _LOGGER.debug("Added extra JS url: %s", js_url)
+        except Exception as err:
+            _LOGGER.debug("Could not add extra JS URL %s: %s", js_url, err)
+
+    # 4. Automatically add to Lovelace resources collection (synced to Android/iOS apps)
+    async def _async_add_lovelace_resource() -> None:
+        try:
+            ll_resources = None
+            if "lovelace" in hass.data and hasattr(hass.data["lovelace"], "resources"):
+                ll_resources = hass.data["lovelace"].resources
+            elif hasattr(hass.data.get("lovelace"), "async_get_resources"):
+                ll_resources = await hass.data["lovelace"].async_get_resources()
+
+            if ll_resources is not None:
+                if hasattr(ll_resources, "loaded") and not ll_resources.loaded:
+                    await ll_resources.async_load()
+                    ll_resources.loaded = True
+
+                items = ll_resources.async_items() if hasattr(ll_resources, "async_items") else []
+                existing_urls = [it.get("url", "") for it in items]
+
+                target_url = f"{LOCAL_URL}?v={VERSION_TAG}"
+                already_exists = any(CARD_FILENAME in u for u in existing_urls)
+
+                if not already_exists and hasattr(ll_resources, "async_create_item"):
+                    await ll_resources.async_create_item({
+                        "res_type": "module",
+                        "type": "module",
+                        "url": target_url,
+                    })
+                    _LOGGER.info("Auto-registered Lovelace resource: %s", target_url)
+        except Exception as err:
+            _LOGGER.debug("Auto-registering Lovelace resource collection skipped: %s", err)
+
+    if hasattr(hass, "async_create_task"):
+        hass.async_create_task(_async_add_lovelace_resource())
+
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
