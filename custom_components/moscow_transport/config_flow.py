@@ -188,9 +188,20 @@ class MoscowTransportConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class MoscowTransportOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle options for Moscow Transport."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+    def __init__(self, config_entry: config_entries.ConfigEntry | None = None) -> None:
         """Initialize options flow."""
-        self.config_entry = config_entry
+        self._entry = config_entry
+
+    @property
+    def _current_entry(self) -> config_entries.ConfigEntry:
+        """Return the current config entry safely across HA versions."""
+        try:
+            super_entry = getattr(super(), "config_entry", None)
+            if super_entry is not None:
+                return super_entry
+        except Exception:
+            pass
+        return self._entry  # type: ignore[return-value]
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -199,12 +210,13 @@ class MoscowTransportOptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        stop_id = self.config_entry.data.get(CONF_STOP_ID)
+        entry = self._current_entry
+        stop_id = entry.data.get(CONF_STOP_ID)
         session = async_get_clientsession(self.hass)
         client = MoscowTransportApiClient(session)
 
         available_routes: list[str] = []
-        stop_name = self.config_entry.title
+        stop_name = entry.title
 
         try:
             stop_info = await client.async_get_stop_info(stop_id)
@@ -215,12 +227,12 @@ class MoscowTransportOptionsFlowHandler(config_entries.OptionsFlow):
             _LOGGER.warning("Could not fetch available routes for options flow: %s", err)
 
         # Merge already selected routes with available routes to avoid dropping unknown routes
-        current_routes = self.config_entry.options.get(
-            CONF_ROUTES, self.config_entry.data.get(CONF_ROUTES, [])
+        current_routes = entry.options.get(
+            CONF_ROUTES, entry.data.get(CONF_ROUTES, [])
         )
         all_options = sorted(list(set(available_routes + current_routes)))
 
-        current_interval = self.config_entry.options.get(
+        current_interval = entry.options.get(
             CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
         )
 
@@ -258,3 +270,4 @@ class MoscowTransportOptionsFlowHandler(config_entries.OptionsFlow):
             data_schema=vol.Schema(schema_dict),
             description_placeholders={"stop_name": stop_name},
         )
+

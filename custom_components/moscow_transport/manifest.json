@@ -1,11 +1,11 @@
 {
   "domain": "moscow_transport",
-  "name": "Moscow Transport",
+  "name": "Московский транспорт",
   "codeowners": ["@d3890666", "@egmen"],
   "config_flow": true,
   "documentation": "https://github.com/d3890666/moscow_transport",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/d3890666/moscow_transport/issues",
   "requirements": [],
-  "version": "24.11.4"
+  "version": "26.09.01"
 }

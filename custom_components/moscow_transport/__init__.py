@@ -28,11 +28,13 @@ FRONTEND_URL = "/moscow_transport/moscow-transport-card.js"
 FRONTEND_PATH = os.path.join(os.path.dirname(__file__), "frontend", "moscow-transport-card.js")
 
 
-async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up the Moscow Transport component and register static assets."""
-    hass.data.setdefault(DOMAIN, {})
+async def async_register_frontend(hass: HomeAssistant) -> None:
+    """Register Lovelace frontend card and resources."""
+    if hass.data.setdefault(f"{DOMAIN}_frontend_registered", False):
+        return
+    hass.data[f"{DOMAIN}_frontend_registered"] = True
 
-    # Register Lovelace card static path
+    # 1. Register static path in HTTP server
     if hasattr(hass, "http"):
         try:
             if hasattr(hass.http, "async_register_static_paths"):
@@ -43,14 +45,28 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             elif hasattr(hass.http, "register_static_path"):
                 hass.http.register_static_path(FRONTEND_URL, FRONTEND_PATH, cache_headers=False)
         except Exception as err:
-            _LOGGER.debug("Static path registration skipped or failed: %s", err)
+            _LOGGER.debug("Static path registration failed: %s", err)
 
+    # 2. Automatically register extra JS URL in Lovelace frontend
+    try:
+        from homeassistant.components.frontend import add_extra_js_url
+        add_extra_js_url(hass, FRONTEND_URL)
+        _LOGGER.debug("Added extra JS url: %s", FRONTEND_URL)
+    except Exception as err:
+        _LOGGER.debug("Could not add extra JS URL: %s", err)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the Moscow Transport component and register static assets."""
+    hass.data.setdefault(DOMAIN, {})
+    await async_register_frontend(hass)
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Moscow Transport from a config entry."""
     hass.data.setdefault(DOMAIN, {})
+    await async_register_frontend(hass)
 
     coordinator = MoscowTransportCoordinator(hass, entry)
     await coordinator.async_config_entry_first_refresh()

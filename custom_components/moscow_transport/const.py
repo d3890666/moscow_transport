@@ -12,7 +12,7 @@ CONF_ROUTES: Final = "routes"
 CONF_NAME: Final = "name"
 CONF_SCAN_INTERVAL: Final = "scan_interval"
 
-DEFAULT_NAME: Final = "Moscow Transport"
+DEFAULT_NAME: Final = "Московский транспорт"
 DEFAULT_SCAN_INTERVAL: Final = 60
 MIN_SCAN_INTERVAL: Final = 15
 
