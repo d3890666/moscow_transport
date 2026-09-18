@@ -1,0 +1,43 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add Moscow Transport Stop",
+        "description": "Enter the stop URL from the Moscow Transport mobile app (shared link) or the stop UUID.",
+        "data": {
+          "stop_input": "Stop URL or UUID"
+        }
+      },
+      "routes": {
+        "title": "Select Routes: {stop_name}",
+        "description": "Select the routes you want to track at this stop. If none are selected, all routes will be tracked.",
+        "data": {
+          "name": "Stop display name",
+          "routes": "Routes to track"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to Moscow Transport service",
+      "invalid_stop_id": "Invalid stop URL or UUID. Please check and try again",
+      "already_configured": "This stop is already configured",
+      "unknown": "Unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "This stop is already configured",
+      "cannot_connect": "Failed to connect to Moscow Transport service"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure {stop_name}",
+        "description": "Adjust tracked routes and update interval.",
+        "data": {
+          "routes": "Routes to track",
+          "scan_interval": "Update interval (seconds)"
+        }
+      }
+    }
+  }
+}
