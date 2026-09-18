@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
-
 import os
 from typing import Any
+
+from .const import DOMAIN
+from .coordinator import MoscowTransportCoordinator
 
 try:
     from homeassistant.config_entries import ConfigEntry
@@ -21,6 +22,7 @@ except ImportError:
     ConfigType = Any  # type: ignore[misc,assignment]
     PLATFORMS = ["sensor"]  # type: ignore[assignment]
 
+_LOGGER = logging.getLogger(__name__)
 
 FRONTEND_URL = "/moscow_transport/moscow-transport-card.js"
 FRONTEND_PATH = os.path.join(os.path.dirname(__file__), "frontend", "moscow-transport-card.js")
@@ -44,7 +46,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             _LOGGER.debug("Static path registration skipped or failed: %s", err)
 
     return True
-
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
