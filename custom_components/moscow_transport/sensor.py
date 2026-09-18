@@ -57,9 +57,21 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Moscow Transport sensor from config entry."""
+    """Set up Moscow Transport sensor and per-route sensors from config entry."""
     coordinator: MoscowTransportCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([MoscowTransportSensor(coordinator, entry)])
+
+    entities: list[SensorEntity] = [MoscowTransportSensor(coordinator, entry)]
+
+    # Add per-route sensors for each configured or detected route
+    target_routes = list(coordinator.configured_routes)
+    if not target_routes and coordinator.data:
+        target_routes = list(coordinator.data.get("routes_forecasts", {}).keys())
+
+    for route_num in target_routes:
+        entities.append(MoscowTransportRouteSensor(coordinator, entry, route_num))
+
+    async_add_entities(entities)
+
 
 
 async def async_setup_platform(
@@ -172,6 +184,94 @@ class MoscowTransportSensor(CoordinatorEntity[MoscowTransportCoordinator], Senso
             attrs["closest_by_telemetry"] = closest[2]
 
         return attrs
+
+
+class MoscowTransportRouteSensor(CoordinatorEntity[MoscowTransportCoordinator], SensorEntity):
+    """Sensor for a specific transit route arriving at the stop."""
+
+    _attr_attribution = ATTRIBUTION
+    _attr_icon = "mdi:bus"
+    _unrecorded_attributes = frozenset({MATCH_ALL})
+
+    def __init__(
+        self,
+        coordinator: MoscowTransportCoordinator,
+        entry: ConfigEntry,
+        route_number: str,
+    ) -> None:
+        """Initialize route sensor."""
+        super().__init__(coordinator)
+        self.entry = entry
+        self._stop_id = coordinator.stop_id
+        self._route_number = route_number
+        self._custom_name = entry.data.get(CONF_NAME) or ""
+        self._attr_unique_id = f"{self._stop_id}_{self._route_number}_moscow_transport"
+        self._attr_native_unit_of_measurement = "мин"
+
+    async def async_update(self) -> None:
+        """Manual update requested via homeassistant.update_entity service."""
+        await self.coordinator.async_request_refresh()
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information for Home Assistant device registry."""
+        stop_name = (
+            self._custom_name
+            or self.coordinator.data.get("stop_name")
+            or DEFAULT_NAME
+        )
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._stop_id)},
+            name=f"Остановка {stop_name}",
+            manufacturer="Московский транспорт",
+            model="Остановка общественного транспорта",
+            configuration_url=f"https://moscowtransport.app/api/stop_v2/{self._stop_id}",
+        )
+
+    @property
+    def name(self) -> str:
+        """Return friendly name including stop and route number."""
+        data = self.coordinator.data or {}
+        base_name = self._custom_name or data.get("stop_name") or DEFAULT_NAME
+        return f"{base_name} Автобус {self._route_number}"
+
+    @property
+    def native_value(self) -> int | None:
+        """Return minutes until closest bus arrives."""
+        data = self.coordinator.data or {}
+        forecasts = data.get("routes_forecasts", {}).get(self._route_number, [])
+        if forecasts:
+            return forecasts[0].get("minutes")
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return detailed attributes for this route."""
+        data = self.coordinator.data or {}
+        forecasts = data.get("routes_forecasts", {}).get(self._route_number, [])
+        stop_name = self._custom_name or data.get("stop_name") or DEFAULT_NAME
+
+        next_arrivals: list[str] = []
+        is_live_gps = False
+        exact_time = None
+
+        if forecasts:
+            is_live_gps = forecasts[0].get("by_telemetry") == 1
+            exact_time = forecasts[0].get("arrival_time")
+            for f in forecasts:
+                by_tel = f.get("by_telemetry") == 1
+                suffix = " (GPS)" if by_tel else " (расписание)"
+                next_arrivals.append(f"{f.get('minutes')} мин{suffix}")
+
+        return {
+            "route": self._route_number,
+            "stop_name": stop_name,
+            "stop_id": self._stop_id,
+            "is_live_gps": is_live_gps,
+            "exact_arrival_time": exact_time,
+            "next_arrivals": next_arrivals,
+            "all_forecasts": forecasts,
+        }
 
 
 class LegacyMoscowTransportSensor(SensorEntity):

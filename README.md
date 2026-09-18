@@ -96,6 +96,40 @@ max_items: 5
 
 ---
 
+## 🤖 Интеграция с голосовыми ассистентами и ИИ (Assist, LLM, OpenAI, Gemini)
+
+Интеграция оптимизирована для работы с голосовыми ассистентами Home Assistant Assist, локальными LLM (Ollama) и облачными моделями (OpenAI Conversation, Google Generative AI / Gemini).
+
+### 1. Сенсоры по каждому маршруту
+Для каждой остановки интеграция автоматически создает как общий сенсор ближайшего транспорта, так и **отдельные сенсоры под каждый маршрут** (например, `sensor.ostanovka_avtobus_83` со значением в минутах `2 мин`). Вы можете:
+- Открыть эти сенсоры для голосового ассистента в **Настройки** → **Голосовые ассистенты** → **Expose to Assist**.
+- Спрашивать у ассистента напрямую: *«Сколько до 83 автобуса?»*
+
+### 2. Действие (Action/Service) для LLM: `moscow_transport.get_arrivals`
+Интеграция регистрирует сервис с поддержкой структурированного ответа (`supports_response: only`). ИИ-агенты с поддержкой Function Calling могут вызывать его самостоятельно для ответа на вопросы пользователей.
+
+**Пример ответа сервиса:**
+```json
+{
+  "stop_name": "9-я ул. Соколиной Горы, 12",
+  "target_route": "83",
+  "arrivals": [
+    {"route": "83", "minutes": 2, "time": "11:32", "is_live_gps": true},
+    {"route": "83", "minutes": 12, "time": "11:42", "is_live_gps": true}
+  ],
+  "summary": "Автобус 83 прибудет на остановку '9-я ул. Соколиной Горы, 12' через 2 мин (по живой GPS-телеметрии)."
+}
+```
+
+### 3. Системный промпт для LLM (System Prompt)
+Добавьте следующую инструкцию в поле **Промпт / Instructions** вашего диалогового агента в Home Assistant (**Настройки** → **Голосовые ассистенты** → ваш агент):
+
+```text
+You have access to Moscow public transport schedules via the `moscow_transport.get_arrivals` action and transport sensors. When the user asks about bus arrivals, ETAs, or transit schedules for a stop, use `moscow_transport.get_arrivals` (specifying the route number if asked) or check the route sensors. If an arrival is marked as live GPS telemetry (`is_live_gps: true`), explicitly mention that the vehicle is tracked in real time. If it is based on scheduled data, clarify that it is an estimated timetable departure.
+```
+
+---
+
 ## ⚙️ Настройка через configuration.yaml (Legacy)
 
 Если вы предпочитаете настраивать через YAML, старый синтаксис поддерживается и автоматически мигрирует в UI-записи:

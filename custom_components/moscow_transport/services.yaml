@@ -1,0 +1,27 @@
+get_arrivals:
+  name: Получить прибытие транспорта
+  description: Возвращает актуальный прогноз прибытия автобусов к остановке с минутами и статусом GPS-телеметрии. Оптимизировано для вызова ИИ-агентами (LLM Function Calling) и сценариями автоматизации.
+  fields:
+    entity_id:
+      name: Сущность остановки
+      description: Сенсор остановки (например, sensor.ostanovka_9_ya_ul_sokolinoy_gory_12). Если не указан, берется первая настроенная остановка.
+      required: false
+      selector:
+        entity:
+          filter:
+            - integration: moscow_transport
+              domain: sensor
+    route:
+      name: Номер маршрута
+      description: Номер автобуса или маршрута (например, "83" или "680"). Если не указан, возвращаются все ближайшие рейсы.
+      required: false
+      example: "83"
+      selector:
+        text:
+    stop_id:
+      name: ID остановки
+      description: UUID остановки, если требуется запросить по конкретному ID.
+      required: false
+      example: "86f6869e-59dc-44a9-8575-3cee948c6f4f"
+      selector:
+        text:
