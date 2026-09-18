@@ -1,11 +1,11 @@
 {
   "domain": "moscow_transport",
   "name": "Moscow Transport",
-  "codeowners": ["@egmen"],
+  "codeowners": ["@d3890666", "@egmen"],
   "config_flow": true,
-  "documentation": "https://github.com/egmen/moscow_transport",
+  "documentation": "https://github.com/d3890666/moscow_transport",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/egmen/moscow_transport/issues",
+  "issue_tracker": "https://github.com/d3890666/moscow_transport/issues",
   "requirements": [],
   "version": "24.11.3"
 }

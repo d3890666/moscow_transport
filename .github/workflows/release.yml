@@ -5,6 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,6 +24,7 @@ jobs:
 
       - name: Get Latest Release
         id: get_latest_release
+        continue-on-error: true
         uses: joutvhu/get-release@v1
         with:
           latest: true
@@ -42,7 +46,7 @@ jobs:
         if: ${{ steps.read_property.outputs.value != steps.get_latest_release.outputs.name }}
         uses: TheDoctor0/zip-release@0.4.2
         with:
-          filename: moscow_transport-${{ steps.read_property.outputs.value }}.zip
+          filename: moscow_transport.zip
           directory: custom_components/
           type: zip
 
@@ -54,5 +58,5 @@ jobs:
           tag: ${{ steps.read_property.outputs.value }}
           name: ${{ steps.read_property.outputs.value }}
           body: ${{ github.event.head_commit.message }}
-          files: custom_components/moscow_transport-${{ steps.read_property.outputs.value }}.zip
+          files: custom_components/moscow_transport.zip
           gzip: false
